@@ -2,7 +2,6 @@
 
 from flask import Flask
 from flask_cors import CORS
-# from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 import os
@@ -13,7 +12,6 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///movieDB.sqlite"
 app.config['SECRET_KEY'] = "moviecops"
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-# Bootstrap(app)
 CORS(app)
 
 
@@ -68,3 +66,12 @@ class Booking(db.Model):
     def __repr__(self):
         return f"Booking(booking_id={self.booking_id}, user_email='{self.user_email}', movie_id={self.movie_id}, " \
                f"venue_id={self.venue_id}, show_id={self.show_id}, seat_num='{self.seat_num}')"
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return "MovieCops API"
+
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)
