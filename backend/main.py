@@ -1,18 +1,38 @@
 # pyright: reportMissingImports=false, reportMissingModuleSource=false
 
-from flask import Flask
+from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-import os
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, get_jwt
+import redis
+
+
+import datetime
+import re
 
 
 app = Flask(__name__)
+
+ACCESS_EXPIRES = datetime.timedelta(minutes=30)
+
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///movieDB.sqlite"
-app.config['SECRET_KEY'] = "moviecops"
+app.config["SECRET_KEY"] = "moviecops"
+app.config["JWT_SECRET_KEY"] = "moviecops"
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = ACCESS_EXPIRES
+
+
+jwt = JWTManager(app)
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 CORS(app)
+
+
+rhost = "localhost"
+rport = 6379
+rdb = 0
+redis_client = redis.StrictRedis(
+    host=rhost, port=rport, db=rdb, decode_responses=True)
 
 
 class User(db.Model):
@@ -71,6 +91,131 @@ class Booking(db.Model):
 @app.route('/', methods=['GET'])
 def index():
     return "MovieCops API"
+
+
+@jwt.token_in_blocklist_loader
+def is_token_revoked(jwt_header, jwt_payload: dict):
+    jti = jwt_payload["jti"]
+    token_revoked = redis_client.get(jti)
+    return token_revoked is not None
+
+
+@app.route('/login', methods=['POST'])
+def login():
+    try:
+        email = request.json.get('email', None)
+        password = request.json.get('password', None)
+
+        if not email:
+            raise Exception("Email not provided!")
+
+        if not password:
+            raise Exception("Password not provided!")
+
+        check_user = User.query.filter_by(email=email).first()
+        if not check_user:
+            raise Exception("Email not registered!")
+
+        if not bcrypt.check_password_hash(check_user.password, password):
+            raise Exception("Invalid password!")
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    access_token = create_access_token(identity=email)
+    return jsonify(access_token=access_token), 200
+
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    try:
+        email = request.json.get('email', None)
+        password = request.json.get('password', None)
+        name = request.json.get('name', None)
+        language = request.json.get('language', None)
+
+        if not email:
+            raise Exception("Email not provided!")
+
+        if not bool(re.fullmatch(r'^[\w.]+@[\w.]+[.]+[\w.]+', email)):
+            raise Exception("Invalid email address!")
+
+        if not password:
+            raise Exception("Password not provided!")
+
+        if len(password) < 8:
+            raise Exception("Your password must be at least 8 characters!")
+
+        if not name:
+            raise Exception("Name not provided!")
+
+        if not language or language == "Select your preferred language":
+            raise Exception("Language not provided!")
+
+        check_user = User.query.filter_by(email=email).first()
+
+        if check_user:
+            raise Exception("Email is already in use!")
+
+        has_uppercase = False
+        has_lowercase = False
+        has_digit = False
+        has_special = False
+        allowed_Schars = ['!', '@', '#', '$', '%']
+
+        for char in password:
+            if char.isupper():
+                has_uppercase = True
+            elif char.islower():
+                has_lowercase = True
+            elif char.isdigit():
+                has_digit = True
+            elif char in allowed_Schars:
+                has_special = True
+        if not (has_uppercase and has_lowercase and has_digit and has_special):
+            raise Exception(
+                "Invalid Password! Your password must contain a capital letter/ number/ special character.")
+
+        password = bcrypt.generate_password_hash(password)
+
+        if request.json.get('adminkey', None) == "adminKey":
+            new_user = User(email=email, name=name,
+                            password=password, language=language, admin=True)
+        else:
+            new_user = User(email=email, name=name,
+                            password=password, language=language)
+
+        db.session.add(new_user)
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"status": "registered user!"}), 200
+
+
+@app.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    current_user = get_jwt_identity()
+    user_data = User.query.filter_by(email=current_user).first()
+
+    return jsonify(logged_in_as=current_user, admin=bool(user_data.admin)), 200
+
+
+@app.route('/logout', methods=['GET'])
+@jwt_required()
+def logout():
+    jti = get_jwt()["jti"]
+    redis_client.set(jti, "", ex=ACCESS_EXPIRES)
+    return jsonify(msg='Successfully logged out'), 200
+
+
+@jwt.unauthorized_loader
+def unauthorized_response(callback):
+    return jsonify({
+        'message': 'Authorization header missing!'
+    }), 401
 
 
 if __name__ == '__main__':
