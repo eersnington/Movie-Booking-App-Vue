@@ -88,6 +88,27 @@ class Booking(db.Model):
                f"venue_id={self.venue_id}, show_id={self.show_id}, seat_num='{self.seat_num}')"
 
 
+def validateLogin(name, password, admin=False):
+    if not name:
+        raise Exception("Email not provided!")
+
+    if not password:
+        raise Exception("Password not provided!")
+
+    check_user = User.query.filter_by(email=name).first()
+    print(check_user)
+    if not check_user:
+        raise Exception("Name not registered!")
+
+    if not bcrypt.check_password_hash(check_user.password, password):
+        raise Exception("Invalid password!")
+
+    if admin and bool(check_user.admin) == False:
+        raise Exception("Do not have admin privileges!")
+
+    return True
+
+
 @app.route('/', methods=['GET'])
 def index():
     return "MovieCops API"
@@ -105,19 +126,9 @@ def login():
     try:
         email = request.json.get('email', None)
         password = request.json.get('password', None)
+        source = request.json.get('source', False)
 
-        if not email:
-            raise Exception("Email not provided!")
-
-        if not password:
-            raise Exception("Password not provided!")
-
-        check_user = User.query.filter_by(email=email).first()
-        if not check_user:
-            raise Exception("Email not registered!")
-
-        if not bcrypt.check_password_hash(check_user.password, password):
-            raise Exception("Invalid password!")
+        validateLogin(email, password, source)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
