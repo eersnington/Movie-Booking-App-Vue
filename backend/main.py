@@ -105,8 +105,17 @@ class Booking(db.Model):
         Venue.venue_id), nullable=False)
     seat_num = db.Column(db.String(3), nullable=False)
 
+    def to_dict(self):
+        return {
+            'booking_id': self.booking_id,
+            'user_email': self.user_email,
+            'show_id': self.show_id,
+            'venue_id': self.venue_id,
+            'seat_num': self.seat_num.split(", ")
+        }
+
     def __repr__(self):
-        return f"Booking(booking_id={self.booking_id}, user_email='{self.user_email}', movie_id={self.movie_id}, " \
+        return f"Booking(booking_id={self.booking_id}, user_email='{self.user_email}', " \
                f"venue_id={self.venue_id}, show_id={self.show_id}, seat_num='{self.seat_num}')"
 
 
@@ -241,6 +250,51 @@ def signup():
     return jsonify({"status": "registered user!"}), 200
 
 
+@app.route('/bookticket', methods=['POST'])
+@jwt_required()
+def bookticket():
+    try:
+        current_user = get_jwt_identity()
+        user_data = User.query.filter_by(email=current_user).first()
+
+        venue_id = request.json.get('venue_id', None)
+        show_id = request.json.get('show_id', None)
+        seats = request.json.get('seats', None)
+
+        if not venue_id:
+            raise Exception("Venue id not provided!")
+
+        if not show_id:
+            raise Exception("Show id not provided!")
+
+        if not seats:
+            raise Exception("Seat number not provided!")
+
+        if not user_data:
+            raise Exception("User not found!")
+
+        if len(seats) < 1:
+            raise Exception("Invalid seats")
+
+        bookings = Booking.query.filter_by(
+            venue_id=venue_id, show_id=show_id).all()
+
+        for seat in seats:
+            for booking in bookings:
+                if seat in booking.seat_num.split(", "):
+                    raise Exception("Seat already booked!")
+
+        new_booking = Booking(user_email=current_user,
+                              venue_id=venue_id, show_id=show_id, seat_num=", ".join(seats))
+
+        db.session.add(new_booking)
+        db.session.commit()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"status": "ticket booked!"}), 200
+
+
 @app.route('/protected', methods=['GET'])
 @jwt_required()
 def protected():
@@ -248,6 +302,37 @@ def protected():
     user_data = User.query.filter_by(email=current_user).first()
 
     return jsonify(logged_in_as=current_user, admin=bool(user_data.admin)), 200
+
+
+@app.route('/booking/get', methods=['GET'])
+@jwt_required()
+def user_tickets():
+    try:
+        current_user = get_jwt_identity()
+        user_data = User.query.filter_by(email=current_user).first()
+
+        if not user_data:
+            raise Exception("User not found!")
+
+        bookings = db.session.query(Booking, Shows, Venue).filter(
+            Booking.user_email == current_user).filter(Booking.show_id == Shows.show_id).filter(Booking.venue_id == Venue.venue_id).all()
+
+        bookings_data = []
+
+        for booking, show, venue in bookings:
+            user_ticket = dict()
+            user_ticket["name"] = show.name
+            user_ticket["venue_name"] = venue.name
+            user_ticket["venue_location"] = venue.location
+            user_ticket["seats"] = booking.seat_num
+            user_ticket["timings"] = show.timings
+            user_ticket["image_src"] = show.image_src
+            bookings_data.append(user_ticket)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(bookings=bookings_data), 200
 
 
 @app.route('/logout', methods=['GET'])
@@ -272,12 +357,21 @@ def get_bshow(show_id=None):
 
         show_data = query[0].to_dict()
         venue_data = query[1].to_dict()
+
+        bookings = Booking.query.filter_by(
+            venue_id=show_data["venue_id"], show_id=show_data["show_id"]).all()
+
+        booked_seats = []
+        for booking in bookings:
+            booked_seats += booking.seat_num.split(", ")
+
         show_data.update({"venue_name": venue_data["name"]})
         show_data.update({"venue_location": venue_data["location"]})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    return jsonify(shows=show_data), 200
+    return jsonify(shows=show_data, booked_seats=booked_seats), 200
 
 
 @app.route('/filter', methods=['POST'])

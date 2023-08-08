@@ -2,7 +2,6 @@
   <div>
     <img alt="Vue logo" src="@/assets/logo.png" />
     <h1>{{ msg }}</h1>
-    <p> {{ token }} </p>
   </div>
 </template>
 
@@ -12,7 +11,7 @@ export default {
   name: "HelloWorld",
   data() {
     return {
-      msg: "API Not Working",
+      msg: "API: Not Working",
       token: localStorage.getItem('token'),
     };
   },

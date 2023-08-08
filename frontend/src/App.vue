@@ -22,7 +22,10 @@
                   <router-link to="/login" class="dropdown-item">Login</router-link>
                 </div>
                 <div v-else>
-                  <router-link to="/login" class="dropdown-item">Booking</router-link>
+                  <div v-if="admin">
+                    <router-link to="/admindashboard" class="dropdown-item">Dashboard</router-link>
+                  </div>
+                  <router-link to="/mytickets" class="dropdown-item">Bookings</router-link>
                   <button @click="logout" class="dropdown-item">Logout</button>
                 </div>
               </ul>
@@ -65,6 +68,9 @@ export default {
     token() {
       return localStorage.getItem('token') !== null;
     },
+    admin() {
+      return localStorage.getItem('isAdmin') == "true";
+    }
   },
   data() {
     return {

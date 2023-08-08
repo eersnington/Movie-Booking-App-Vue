@@ -10,17 +10,25 @@
                     <div v-for="seatNumber in seatNumbers" :key="seatNumber" class="col-sm">
                         <input class="form-check-input" type="checkbox" :value="row + seatNumber"
                             :id="'seat' + row + seatNumber" :name="'seat' + row + seatNumber" v-model="selectedSeats"
-                            v-bind="{ checked: isSeatBooked(row + seatNumber), disabled: isSeatBooked(row + seatNumber) }" />
+                            :checked="isSeatBooked(row + seatNumber)" :disabled="isSeatBooked(row + seatNumber)" />
+
                         <label :for="'seat' + row + seatNumber" class="form-check-label">
                             {{ row + seatNumber }}
                         </label>
+
                     </div>
+
                 </div>
                 <div class="row">
                     <div class="col-sm">
                         <p>Venue: <strong>{{ showInfo.venue_name }}</strong></p>
                         <p>Location: <strong>{{ showInfo.venue_location }}</strong></p>
                         <p>Price Per Ticket: <strong>{{ showInfo.price }}</strong></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm">
+                        <p>Total Cost: <strong>{{ calculateTotalCost }}</strong></p>
                     </div>
                 </div>
                 <div class="row">
@@ -53,6 +61,11 @@ export default {
         },
         seatNumbers() {
             return ['1', '2', '3', '4', '5'];
+        },
+        calculateTotalCost() {
+            const price = parseFloat(this.showInfo.price);
+            const n = this.selectedSeats.length;
+            return (price * n).toFixed(2);
         }
     },
     methods: {
@@ -69,16 +82,28 @@ export default {
                 alert('Please login to book tickets.');
                 return;
             }
+            Server().post('/bookticket', {
+                venue_id: this.showInfo.venue_id,
+                show_id: this.showInfo.show_id,
+                seats: this.selectedSeats
+            })
+                .then(response => {
+                    console.log(response);
+                    alert('Booking confirmed!');
 
-            console.log('Selected Seats:', this.selectedSeats);
+                })
+                .catch(error => {
+                    console.log(error);
+                    alert('Error in booking tickets.');
+                });
         }
     },
     mounted() {
         Server().get('/show/get/' + this.showID)
             .then(response => {
                 this.showInfo = response.data.shows;
+                this.bookedSeats = response.data.booked_seats;
 
-                console.log(this.showInfo)
             })
             .catch(error => {
                 console.log(error);

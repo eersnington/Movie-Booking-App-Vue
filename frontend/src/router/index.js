@@ -7,6 +7,7 @@ import SignupView from "../views/SignupView.vue";
 import AdminLoginView from "../views/AdminLoginView.vue";
 import AdminDashboardView from "../views/AdminDashboardView.vue";
 import SeatBookingView from "../views/SeatBookingView.vue";
+import UserTicketsView from "../views/UserTicketsView.vue";
 
 Vue.use(VueRouter);
 
@@ -48,6 +49,12 @@ const routes = [
     component: SeatBookingView,
     meta: { requiresAuth: true}, 
   },
+  {
+    path: "/mytickets",
+    name: "booked",
+    component: UserTicketsView,
+    meta: {requiresAuth: true},
+  }
 ];
 
 const router = new VueRouter({
