@@ -25,7 +25,7 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = ACCESS_EXPIRES
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-CORS(app)
+CORS(app, origins=["http://localhost:8080"])
 
 
 rhost = "localhost"
@@ -51,6 +51,13 @@ class Venue(db.Model):
     name = db.Column(db.String(50), nullable=False)
     location = db.Column(db.String(50), nullable=False)
 
+    def to_dict(self):
+        return {
+            'venue_id': self.venue_id,
+            'name': self.name,
+            'location': self.location
+        }
+
     def __repr__(self):
         return f"Venue(venue_id={self.venue_id}, name='{self.name}', location='{self.location}')"
 
@@ -67,6 +74,20 @@ class Shows(db.Model):
     ticket_price = db.Column(db.Integer, default=250, nullable=False)
     seats = db.Column(db.Integer, nullable=False)
     timings = db.Column(db.String(50), nullable=False)
+
+    def to_dict(self):
+        return {
+            'show_id': self.show_id,
+            'name': self.name,
+            'rating': self.rating,
+            'tags': self.tags,
+            'language': self.language,
+            'imagePath': self.image_src,
+            'venue_id': self.venue_id,
+            'price': self.ticket_price,
+            'seats': self.seats,
+            'timings': self.timings
+        }
 
     def __repr__(self):
         return f"Shows(show_id={self.show_id}, movie_id={self.movie_id}, venue_id={self.venue_id}, " \
@@ -220,6 +241,215 @@ def logout():
     jti = get_jwt()["jti"]
     redis_client.set(jti, "", ex=ACCESS_EXPIRES)
     return jsonify(msg='Successfully logged out'), 200
+
+
+@app.route('/venue/get', methods=['GET'])
+def get_venues():
+    venues = Venue.query.all()
+    venue_list = [venue.to_dict() for venue in venues]
+    return jsonify(venues=venue_list), 200
+
+
+@app.route('/venue/create', methods=['POST'])
+def venue_create():
+    venue_name = request.json.get('name', None)
+    venue_location = request.json.get('location', None)
+
+    try:
+        if not venue_name:
+            raise Exception("Venue Name not provided!")
+        if not venue_location:
+            raise Exception("Venue Location not provided!")
+
+        new_venue = Venue(name=venue_name, location=venue_location)
+        db.session.add(new_venue)
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(msg='Venue Created!'), 200
+
+
+@app.route('/venue/update', methods=['POST'])
+def venue_update():
+
+    print(request.json)
+    venue_id = request.json.get('id', None)
+    venue_name = request.json.get('name', None)
+    venue_location = request.json.get('location', None)
+
+    try:
+        if not venue_id:
+            raise Exception("Venue ID not provided!")
+        if not venue_name:
+            raise Exception("Venue Name not provided!")
+        if not venue_location:
+            raise Exception("Venue Location not provided!")
+
+        venue = Venue.query.filter_by(venue_id=venue_id).first()
+        if not venue:
+            raise Exception("Venue not found!")
+
+        venue.name = venue_name
+        venue.location = venue_location
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(msg='Venue Updated!'), 200
+
+
+@app.route('/venue/delete', methods=['POST'])
+def venue_delete():
+    venue_id = request.json.get('venue_id', None)
+
+    try:
+        if not venue_id:
+            raise Exception("Venue ID not provided!")
+
+        venue = Venue.query.filter_by(venue_id=venue_id).first()
+        if not venue:
+            raise Exception("Venue not found!")
+
+        Shows.query.filter_by(venue_id=venue_id).delete()
+
+        db.session.delete(venue)
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(msg='Venue Deleted!'), 200
+
+
+@app.route('/show/get', methods=['GET'])
+def get_shows():
+    shows = Shows.query.all()
+    show_list = [show.to_dict() for show in shows]
+    return jsonify(shows=show_list), 200
+
+
+@app.route('/show/create', methods=['POST'])
+def show_create():
+    show_name = request.json.get('movieName', None)
+    show_venue = request.json.get('venue_id', None)
+    show_tags = request.json.get('movieTags', None)
+    show_rating = request.json.get('movieRating', None)
+    show_language = request.json.get('movieLanguage', None)
+    show_image = request.json.get('imageFile', None)
+    show_timings = request.json.get('showTimings', None)
+    show_seats = request.json.get('seats', None)
+    show_price = request.json.get('ticketPrice', None)
+
+    try:
+        if not show_name:
+            raise Exception("Show Name not provided!")
+        if not show_venue:
+            raise Exception("Show Venue not provided!")
+        if not show_tags:
+            raise Exception("Show Tags not provided!")
+        if not show_rating:
+            raise Exception("Show Rating not provided!")
+        if not show_language:
+            raise Exception("Show Language not provided!")
+        if not show_image:
+            raise Exception("Show Image not provided!")
+        if not show_timings:
+            raise Exception("Show Timings not provided!")
+        if not show_seats:
+            raise Exception("Show Seats not provided!")
+        if not show_price:
+            raise Exception("Show Price not provided!")
+
+        new_show = Shows(name=show_name, venue_id=show_venue, tags=show_tags, rating=show_rating,
+                         language=show_language, image_src=show_image, timings=show_timings, seats=int(show_seats), ticket_price=int(show_price))
+        db.session.add(new_show)
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(msg='Show Created!'), 200
+
+
+@app.route('/show/update', methods=['POST'])
+def show_update():
+
+    show_id = request.json.get('show_id', None)
+    show_name = request.json.get('name', None)
+    show_venue = request.json.get('venue_id', None)
+    show_tags = request.json.get('tags', None)
+    show_rating = request.json.get('rating', None)
+    show_language = request.json.get('language', None)
+    show_image = request.json.get('image_src', None)
+    show_timings = request.json.get('timings', None)
+    show_seats = request.json.get('seats', None)
+    show_price = request.json.get('ticket_price', None)
+
+    try:
+        if not show_id:
+            raise Exception("Show ID not provided!")
+        if not show_name:
+            raise Exception("Show Name not provided!")
+        if not show_venue:
+            raise Exception("Show Venue not provided!")
+        if not show_tags:
+            raise Exception("Show Tags not provided!")
+        if not show_rating:
+            raise Exception("Show Rating not provided!")
+        if not show_language:
+            raise Exception("Show Language not provided!")
+        if not show_image:
+            raise Exception("Show Image not provided!")
+        if not show_timings:
+            raise Exception("Show Timings not provided!")
+        if not show_seats:
+            raise Exception("Show Seats not provided!")
+        if not show_price:
+            raise Exception("Show Price not provided!")
+
+        show = Shows.query.filter_by(show_id=show_id).first()
+        if not show:
+            raise Exception("Show not found!")
+
+        show.name = show_name
+        show.venue_id = show_venue
+        show.tags = show_tags
+        show.rating = show_rating
+        show.language = show_language
+        show.image_src = show_image
+        show.timings = show_timings
+        show.seats = show_seats
+        show.ticket_price = show_price
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(msg='Show Updated!'), 200
+
+
+@app.route('/show/delete', methods=['POST'])
+def show_delete():
+    show_id = request.json.get('show_id', None)
+
+    try:
+        if not show_id:
+            raise Exception("Show ID not provided!")
+
+        show = Shows.query.filter_by(show_id=show_id).first()
+        if not show:
+            raise Exception("Show not found!")
+
+        db.session.delete(show)
+        db.session.commit()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(msg='Show Deleted!'), 200
 
 
 @jwt.unauthorized_loader

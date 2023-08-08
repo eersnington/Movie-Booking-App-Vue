@@ -10,27 +10,31 @@
               <router-link to="/" class="nav-link">Home</router-link>
             </li>
             <li class="nav-item">
-              <router-link to="/about" class="nav-link">Shows</router-link>
+              <router-link to="/shows" class="nav-link">Shows</router-link>
             </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown"
-              aria-expanded="false">
+                aria-expanded="false">
                 User
               </a>
               <ul class="dropdown-menu" aria-labelledby="profileDropdown">
-                <li><a class="dropdown-item" href="">Bookings</a></li>
-                <router-link to="/login" class="dropdown-item" v-if="!token">Login</router-link>
-                <button @click="logout" class="dropdown-item"  v-else>Logout</button>
+                <div v-if="!token">
+                  <router-link to="/login" class="dropdown-item">Login</router-link>
+                </div>
+                <div v-else>
+                  <router-link to="/login" class="dropdown-item">Booking</router-link>
+                  <button @click="logout" class="dropdown-item">Logout</button>
+                </div>
               </ul>
             </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="locationDropdown" role="button" data-bs-toggle="dropdown">
-              Location
+                Location
               </a>
               <ul class="dropdown-menu" aria-labelledby="locationDropdown">
-              <li><a class="dropdown-item" href="">Chennai</a></li>
-              <li><a class="dropdown-item" href="">Kochi</a></li>
-              <li><a class="dropdown-item" href="">Bangalore</a></li>
+                <li><a class="dropdown-item" href="">Chennai</a></li>
+                <li><a class="dropdown-item" href="">Kochi</a></li>
+                <li><a class="dropdown-item" href="">Bangalore</a></li>
               </ul>
             </li>
           </ul>
@@ -65,16 +69,16 @@ export default {
   methods: {
     logout() {
       Server().get('/logout')
-      .then(res => {
-        console.log(res);
-        localStorage.removeItem('token');
-        this.$router.push('/').catch(()=>{});
-        window.location.reload();
-          
-      })
-      .catch(error => {
-          console.error('Logout failed:', error.response.data.error);          
-      });
+        .then(res => {
+          console.log(res);
+          localStorage.removeItem('token');
+          this.$router.push('/').catch(() => { });
+          window.location.reload();
+
+        })
+        .catch(error => {
+          console.error('Logout failed:', error.response.data.error);
+        });
     },
   },
 };

@@ -1,10 +1,11 @@
 import Vue from "vue";
 import VueRouter from "vue-router";
 import HomeView from "../views/HomeView.vue";
-import AboutView from "../views/AboutView.vue";
+import ShowsView from "../views/ShowsView.vue";
 import LoginView from "../views/LoginView.vue";
 import SignupView from "../views/SignupView.vue";
 import AdminLoginView from "../views/AdminLoginView.vue";
+import AdminDashboardView from "../views/AdminDashboardView.vue";
 
 Vue.use(VueRouter);
 
@@ -15,9 +16,9 @@ const routes = [
     component: HomeView,
   },
   {
-    path: "/about",
-    name: "about",
-    component: AboutView,
+    path: "/shows",
+    name: "shows",
+    component: ShowsView,
   },
   {
     path: "/login",
@@ -33,6 +34,11 @@ const routes = [
     path: "/adminlogin",
     name: "adminlogin",
     component: AdminLoginView,
+  },
+  {
+    path: "/admindashboard",
+    name: "admindashboard",
+    component: AdminDashboardView,
   },
 ];
 
