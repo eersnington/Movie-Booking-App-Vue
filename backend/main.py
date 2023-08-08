@@ -131,6 +131,18 @@ def validateLogin(name, password, admin=False):
     return True
 
 
+def check_admin(current_user):
+    try:
+        user_data = User.query.filter_by(email=current_user).first()
+        admin = bool(user_data.admin)
+
+        if not admin:
+            raise Exception("Do not have admin privileges!")
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/', methods=['GET'])
 def index():
     return "MovieCops API"
@@ -156,6 +168,8 @@ def login():
         return jsonify({"error": str(e)}), 500
 
     access_token = create_access_token(identity=email)
+    if source:
+        return jsonify(access_token=access_token, admin=True), 200
     return jsonify(access_token=access_token), 200
 
 
@@ -244,6 +258,28 @@ def logout():
     return jsonify(msg='Successfully logged out'), 200
 
 
+@app.route('/show/get/<show_id>', methods=['GET'])
+def get_bshow(show_id=None):
+    try:
+        if not show_id:
+            raise Exception("Show id not provided!")
+
+        query = db.session.query(Shows, Venue).filter(
+            Shows.venue_id == Venue.venue_id).filter(Shows.show_id == show_id).first()
+
+        if not query:
+            raise Exception("Show not found!")
+
+        show_data = query[0].to_dict()
+        venue_data = query[1].to_dict()
+        show_data.update({"venue_name": venue_data["name"]})
+        show_data.update({"venue_location": venue_data["location"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(shows=show_data), 200
+
+
 @app.route('/filter', methods=['POST'])
 def filter():
     try:
@@ -288,7 +324,11 @@ def filter():
 
 
 @app.route('/venue/get', methods=['GET'])
+@jwt_required()
 def get_venues():
+    current_user = get_jwt_identity()
+    check_admin(current_user)
+
     venues = Venue.query.all()
     venue_list = [venue.to_dict() for venue in venues]
     return jsonify(venues=venue_list), 200
@@ -316,6 +356,7 @@ def venue_create():
 
 
 @app.route('/venue/update', methods=['POST'])
+@jwt_required()
 def venue_update():
 
     print(request.json)
@@ -346,6 +387,7 @@ def venue_update():
 
 
 @app.route('/venue/delete', methods=['POST'])
+@jwt_required()
 def venue_delete():
     venue_id = request.json.get('venue_id', None)
 
@@ -376,6 +418,7 @@ def get_shows():
 
 
 @app.route('/show/create', methods=['POST'])
+@jwt_required()
 def show_create():
     show_name = request.json.get('movieName', None)
     show_venue = request.json.get('venue_id', None)
@@ -419,6 +462,7 @@ def show_create():
 
 
 @app.route('/show/update', methods=['POST'])
+@jwt_required()
 def show_update():
 
     show_id = request.json.get('show_id', None)
@@ -476,6 +520,7 @@ def show_update():
 
 
 @app.route('/show/delete', methods=['POST'])
+@jwt_required()
 def show_delete():
     show_id = request.json.get('show_id', None)
 

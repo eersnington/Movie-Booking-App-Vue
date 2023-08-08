@@ -76,13 +76,13 @@ export default {
       Server().get('/logout')
         .then(res => {
           console.log(res);
-          localStorage.removeItem('token');
+          localStorage.clear();
           this.$router.push('/').catch(() => { });
           window.location.reload();
 
         })
         .catch(error => {
-          console.error('Logout failed:', error.response.data.error);
+          console.error('Logout failed:', error);
         });
     },
     searchShows() {
@@ -90,5 +90,8 @@ export default {
       this.$router.push('/shows').catch(() => { });
     },
   },
+  mounted() {
+    setInterval(this.logout, 30 * 60 * 1000);
+  }
 };
 </script>

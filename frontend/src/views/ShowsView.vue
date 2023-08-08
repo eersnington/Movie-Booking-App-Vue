@@ -23,7 +23,8 @@
                             <p class="card-text">{{ show.tags }}</p>
                             <p class="card-text">{{ show.rating }}/10</p>
                             <p class="card-text">{{ show.language }}</p>
-                            <button class="btn btn-primary" @click="bookShow(show.show_id)">Book Now</button>
+                            <router-link :to="{ name: 'booking', params: { showId: show.show_id } }"
+                                class="btn btn-primary">Book Now</router-link>
                         </div>
                     </div>
                 </div>
