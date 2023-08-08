@@ -39,9 +39,9 @@
             </li>
           </ul>
           <br>
-          <form class="d-flex" action="" method="POST">
-            <input class="form-control mr-sm-2" type="search" placeholder="Search Shows" name="search">
-            <button class="btn btn-outline-success" type="submit" name="submit" value="search">Search</button>
+          <form class="d-flex" @submit.prevent="searchShows">
+            <input class="form-control mr-sm-2" type="search" placeholder="Search Shows" v-model="searchTerm">
+            <button class="btn btn-outline-success" type="submit">Search</button>
           </form>
         </div>
       </div>
@@ -66,6 +66,11 @@ export default {
       return localStorage.getItem('token') !== null;
     },
   },
+  data() {
+    return {
+      searchTerm: ''
+    };
+  },
   methods: {
     logout() {
       Server().get('/logout')
@@ -79,6 +84,10 @@ export default {
         .catch(error => {
           console.error('Logout failed:', error.response.data.error);
         });
+    },
+    searchShows() {
+      this.$emit('search-applied', this.searchTerm);
+      this.$router.push('/shows').catch(() => { });
     },
   },
 };

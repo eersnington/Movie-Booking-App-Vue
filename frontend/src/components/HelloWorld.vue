@@ -2,7 +2,7 @@
   <div>
     <img alt="Vue logo" src="@/assets/logo.png" />
     <h1>{{ msg }}</h1>
-    <p> {{token}} </p>
+    <p> {{ token }} </p>
   </div>
 </template>
 
@@ -13,16 +13,16 @@ export default {
   data() {
     return {
       msg: "API Not Working",
-      token: localStorage.getItem('token'), 
+      token: localStorage.getItem('token'),
     };
   },
   methods: {
     getResponse() {
       Server().get("")
-      .then((res)=>{
+        .then((res) => {
           this.msg = res.data;
-      })
-      .catch((err)=>{
+        })
+        .catch((err) => {
           console.log(err);
         });
     },
@@ -32,5 +32,3 @@ export default {
   },
 };
 </script>
-
-<style lang="scss" scoped></style>

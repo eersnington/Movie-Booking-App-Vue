@@ -90,7 +90,8 @@ class Shows(db.Model):
         }
 
     def __repr__(self):
-        return f"Shows(show_id={self.show_id}, movie_id={self.movie_id}, venue_id={self.venue_id}, " \
+        return f"Shows(show_id={self.show_id}, name='{self.name}', rating={self.rating}, tags='{self.tags}', " \
+               f"language='{self.language}', image_src='{self.image_src}', venue_id={self.venue_id}, " \
                f"ticket_price={self.ticket_price}, seats={self.seats}, timings='{self.timings}')"
 
 
@@ -241,6 +242,49 @@ def logout():
     jti = get_jwt()["jti"]
     redis_client.set(jti, "", ex=ACCESS_EXPIRES)
     return jsonify(msg='Successfully logged out'), 200
+
+
+@app.route('/filter', methods=['POST'])
+def filter():
+    try:
+        min_rating = request.json.get('minRating', 0)
+        language = request.json.get('language', None)
+        location = request.json.get('location', None)
+
+        if not language:
+            raise Exception("Language not provided!")
+
+        if not location:
+            raise Exception("Locaton not provided!")
+
+        if not min_rating:
+            raise Exception("Rating not provided!")
+
+        if int(min_rating) not in range(0, 11):
+            raise Exception("Invalid rating!")
+
+        query = db.session.query(Shows, Venue).filter(
+            Shows.venue_id == Venue.venue_id)
+
+        if location != "Any":
+            query = query.filter(Venue.location == location)
+        if language != "Any":
+            query = query.filter(Shows.language == language)
+        if min_rating:
+            query = query.filter(Shows.rating >= min_rating)
+
+        res = query.all()
+        result_dict_list = []
+        for show, venue in res:
+            show_dict = show.to_dict()
+            result_dict_list.append(show_dict)
+
+        movies_list = [] if res == 0 else result_dict_list
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(shows=movies_list), 200
 
 
 @app.route('/venue/get', methods=['GET'])
