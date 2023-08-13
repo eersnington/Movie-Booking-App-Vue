@@ -51,7 +51,7 @@ export default {
     data() {
         return {
             filter: {
-                minRating: '',
+                minRating: '0',
                 language: 'Any',
                 location: 'Any',
             },
