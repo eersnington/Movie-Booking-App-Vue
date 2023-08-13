@@ -30,16 +30,6 @@
                 </div>
               </ul>
             </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="locationDropdown" role="button" data-bs-toggle="dropdown">
-                Location
-              </a>
-              <ul class="dropdown-menu" aria-labelledby="locationDropdown">
-                <li><a class="dropdown-item" href="">Chennai</a></li>
-                <li><a class="dropdown-item" href="">Kochi</a></li>
-                <li><a class="dropdown-item" href="">Bangalore</a></li>
-              </ul>
-            </li>
           </ul>
           <br>
           <form class="d-flex" @submit.prevent="searchShows">
@@ -89,6 +79,13 @@ export default {
         })
         .catch(error => {
           console.error('Logout failed:', error);
+          if (error.response) {
+            if (error.response.data.msg == 'Token has expired') {
+              localStorage.clear();
+              this.$router.push('/').catch(() => { });
+              window.location.reload();
+            }
+          }
         });
     },
     searchShows() {

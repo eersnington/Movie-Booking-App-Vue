@@ -1,6 +1,10 @@
 # pyright: reportMissingImports=false, reportMissingModuleSource=false
 
-from flask import Flask, jsonify, request, session
+import time
+from worker import celery_app
+import tasks
+from celery.result import AsyncResult
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
@@ -9,6 +13,7 @@ import redis
 
 
 import datetime
+import threading
 import re
 
 
@@ -27,12 +32,13 @@ db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 CORS(app, origins=["http://localhost:8080"])
 
-
 rhost = "localhost"
 rport = 6379
 rdb = 0
 redis_client = redis.StrictRedis(
     host=rhost, port=rport, db=rdb, decode_responses=True)
+
+cel_app = celery_app
 
 
 class User(db.Model):
@@ -41,6 +47,12 @@ class User(db.Model):
     password = db.Column(db.String(50), nullable=False)
     language = db.Column(db.String(50), nullable=False)
     admin = db.Column(db.Boolean, default=False, nullable=False)
+
+    def to_dict(self):
+        return {
+            'email': self.email,
+            'name': self.name,
+        }
 
     def __repr__(self):
         return f"User(email='{self.email}', name='{self.name}', password='{self.password}', language='{self.language}')"
@@ -104,6 +116,7 @@ class Booking(db.Model):
     venue_id = db.Column(db.Integer, db.ForeignKey(
         Venue.venue_id), nullable=False)
     seat_num = db.Column(db.String(3), nullable=False)
+    booking_time = db.Column(db.DateTime, nullable=False)
 
     def to_dict(self):
         return {
@@ -116,7 +129,12 @@ class Booking(db.Model):
 
     def __repr__(self):
         return f"Booking(booking_id={self.booking_id}, user_email='{self.user_email}', " \
-               f"venue_id={self.venue_id}, show_id={self.show_id}, seat_num='{self.seat_num}')"
+               f"venue_id={self.venue_id}, show_id={self.show_id}, seat_num='{self.seat_num}', booking_time='{self.booking_time}')"
+
+
+"""
+    Functions
+"""
 
 
 def validateLogin(name, password, admin=False):
@@ -127,7 +145,6 @@ def validateLogin(name, password, admin=False):
         raise Exception("Password not provided!")
 
     check_user = User.query.filter_by(email=name).first()
-    print(check_user)
     if not check_user:
         raise Exception("Name not registered!")
 
@@ -152,16 +169,85 @@ def check_admin(current_user):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/', methods=['GET'])
-def index():
-    return "MovieCops API"
-
-
 @jwt.token_in_blocklist_loader
 def is_token_revoked(jwt_header, jwt_payload: dict):
     jti = jwt_payload["jti"]
     token_revoked = redis_client.get(jti)
     return token_revoked is not None
+
+
+@jwt.unauthorized_loader
+def unauthorized_response(callback):
+    return jsonify({
+        'message': 'Authorization header missing!'
+    }), 401
+
+
+"""
+    Celery Jobs
+"""
+
+
+def email_job():
+    while True:
+        print("New Email Job Loop!")
+        with app.app_context():
+            users = User.query.all()
+            for user in users:
+                last_booking = Booking.query.filter_by(user_email=user.email).order_by(
+                    Booking.booking_time.desc()).first()
+                if last_booking is None:
+                    tasks.email_task.delay(user.to_dict(), None)
+                else:
+                    tasks.email_task.delay(
+                        user.to_dict(), last_booking.booking_time)
+        time.sleep(60*10)
+
+
+def user_monthly_report_job():
+    while True:
+        print("New User Monthly Report Job Loop!")
+        with app.app_context():
+            now = datetime.datetime.now()
+            if now.day == 13:
+                users = User.query.all()
+                for user in users:
+
+                    start_date = datetime.datetime(now.year, now.month, 1)
+                    if now.month == 12:
+                        end_date = datetime.datetime(now.year + 1, 1, 1)
+                    else:
+                        end_date = datetime.datetime(
+                            now.year, now.month + 1, 1)
+
+                    monthly_booking = Booking.query.filter_by(user_email=user.email).filter(
+                        Booking.booking_time >= start_date,
+                        Booking.booking_time < end_date).all()
+
+                    if len(monthly_booking) > 0:
+                        res = []
+                        for booking in monthly_booking:
+                            movie = Shows.query.filter_by(
+                                show_id=booking.show_id).first()
+                            booking_dict = dict()
+                            booking_dict.update({"movie_name": movie.name})
+                            booking_dict.update(
+                                {"booking_time": booking.booking_time.strftime('%d %B, %Y')})
+                            res.append(booking_dict)
+
+                        tasks.monthly_report.delay(
+                            user.to_dict(), res, now.strftime('%B'), now.strftime('%Y'))
+        time.sleep(60*10)
+
+
+"""
+    User Endpoints
+"""
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return "MovieCops API"
 
 
 @app.route('/login', methods=['POST'])
@@ -285,7 +371,7 @@ def bookticket():
                     raise Exception("Seat already booked!")
 
         new_booking = Booking(user_email=current_user,
-                              venue_id=venue_id, show_id=show_id, seat_num=", ".join(seats))
+                              venue_id=venue_id, show_id=show_id, seat_num=", ".join(seats), booking_time=datetime.datetime.now())
 
         db.session.add(new_booking)
         db.session.commit()
@@ -293,15 +379,6 @@ def bookticket():
         return jsonify({"error": str(e)}), 500
 
     return jsonify({"status": "ticket booked!"}), 200
-
-
-@app.route('/protected', methods=['GET'])
-@jwt_required()
-def protected():
-    current_user = get_jwt_identity()
-    user_data = User.query.filter_by(email=current_user).first()
-
-    return jsonify(logged_in_as=current_user, admin=bool(user_data.admin)), 200
 
 
 @app.route('/booking/get', methods=['GET'])
@@ -417,6 +494,74 @@ def filter():
     return jsonify(shows=movies_list), 200
 
 
+@app.route('/show/get', methods=['GET'])
+def get_shows():
+    shows = Shows.query.all()
+    show_list = [show.to_dict() for show in shows]
+    return jsonify(shows=show_list), 200
+
+
+"""
+    Admin Endpoints
+"""
+
+
+@app.route('/export', methods=['POST'])
+@jwt_required()
+def export_csv():
+    current_user = get_jwt_identity()
+    check_admin(current_user)
+
+    try:
+        venue_id = request.json.get('venue_id', None)
+        if not venue_id:
+            raise Exception("Venue ID not provided!")
+
+        shows = Shows.query.filter_by(venue_id=venue_id).all()
+
+        venue = Venue.query.filter_by(venue_id=venue_id).first()
+
+        if not shows:
+            raise Exception("No shows found!")
+
+        if not venue:
+            raise Exception("Venue not found!")
+
+        data = list()
+        for show in shows:
+            show_dict = show.to_dict()
+            data.append(show_dict)
+
+        export = tasks.export_csv.delay(venue.name, data)
+        res = export.id
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(msg=res), 200
+
+
+@app.route('/export/status', methods=['POST'])
+@jwt_required()
+def check_csv():
+    current_user = get_jwt_identity()
+    check_admin(current_user)
+
+    try:
+        task_id = request.json.get('task_id', None)
+        if not task_id:
+            raise Exception("Task ID not provided!")
+
+        res = AsyncResult(task_id)
+        if res:
+            return jsonify(msg="CSV File Created"), 200
+        else:
+            return jsonify(msg="Not Ready"), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/venue/get', methods=['GET'])
 @jwt_required()
 def get_venues():
@@ -429,6 +574,7 @@ def get_venues():
 
 
 @app.route('/venue/create', methods=['POST'])
+@jwt_required()
 def venue_create():
     venue_name = request.json.get('name', None)
     venue_location = request.json.get('location', None)
@@ -453,7 +599,6 @@ def venue_create():
 @jwt_required()
 def venue_update():
 
-    print(request.json)
     venue_id = request.json.get('id', None)
     venue_name = request.json.get('name', None)
     venue_location = request.json.get('location', None)
@@ -502,13 +647,6 @@ def venue_delete():
         return jsonify({"error": str(e)}), 500
 
     return jsonify(msg='Venue Deleted!'), 200
-
-
-@app.route('/show/get', methods=['GET'])
-def get_shows():
-    shows = Shows.query.all()
-    show_list = [show.to_dict() for show in shows]
-    return jsonify(shows=show_list), 200
 
 
 @app.route('/show/create', methods=['POST'])
@@ -635,12 +773,11 @@ def show_delete():
     return jsonify(msg='Show Deleted!'), 200
 
 
-@jwt.unauthorized_loader
-def unauthorized_response(callback):
-    return jsonify({
-        'message': 'Authorization header missing!'
-    }), 401
-
-
 if __name__ == '__main__':
+    t1 = threading.Thread(target=email_job)
+    t1.daemon = True
+    t1.start()
+    t2 = threading.Thread(target=user_monthly_report_job)
+    t2.daemon = True
+    t2.start()
     app.run(debug=True, port=5001)

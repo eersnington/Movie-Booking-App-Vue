@@ -1,6 +1,8 @@
+# pyright: reportMissingImports=false, reportMissingModuleSource=false
 
-from flask import Flask, jsonify, request, session
-from flask_cors import CORS
+from datetime import datetime, timedelta
+
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
 
@@ -56,11 +58,11 @@ class Booking(db.Model):
     venue_id = db.Column(db.Integer, db.ForeignKey(
         Venue.venue_id), nullable=False)
     seat_num = db.Column(db.String(3), nullable=False)
+    booking_time = db.Column(db.DateTime, nullable=False)
 
     def __repr__(self):
-        return f"Booking(booking_id={self.booking_id}, user_email='{self.user_email}', movie_id={self.movie_id}, " \
-               f"venue_id={self.venue_id}, show_id={self.show_id}, seat_num='{self.seat_num}')"
-
+        return f"Booking(booking_id={self.booking_id}, user_email='{self.user_email}', " \
+               f"venue_id={self.venue_id}, show_id={self.show_id}, seat_num='{self.seat_num}', booking_time='{self.booking_time}')"
 
 
 with app.app_context():

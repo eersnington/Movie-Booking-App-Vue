@@ -11,10 +11,9 @@
             <p>No venues available!</p>
         </div>
         <div v-else>
-
             <div v-for="venue in venues" :key="venue.venue_id" class="card text-dark border-primary" style="width: 18rem;">
                 <div class="card-body">
-                    <h5 class="card-title text-primary">{{ venue.name }}</h5>
+                    <h5 class="card-title text-primary"> {{ venue.name }} </h5>
                     <p class="card-text">Location: {{ venue.location }}</p>
 
                     <div v-for="show in shows.filter(s => s.venue_id == venue.venue_id)" :key="show.show_id">
@@ -37,6 +36,7 @@
                 </div>
                 <div class="card-footer">
                     <!-- Venue Edit and Delete Buttons -->
+                    <button @click="exportCSV(venue.venue_id)" class="btn btn-success">Export CSV</button>
                     <button @click="deleteVenue(venue.venue_id)" class="btn btn-danger">Delete Venue</button>
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                         :data-bs-target="'#venueEditModal' + venue.venue_id">
@@ -44,10 +44,8 @@
                     </button>
                 </div>
             </div>
-
-
-            <VenueCreateModal />
         </div>
+        <VenueCreateModal />
     </div>
 </template>
   
@@ -99,6 +97,27 @@ export default {
                     alert("Error in deleting venue");
                 });
         },
+        exportCSV(venueID) {
+            Server().post(`/export`, { venue_id: venueID })
+                .then(response => {
+
+                    setTimeout(this.checkCSV(response.data.msg), 3000);
+                })
+                .catch(error => {
+                    console.log(error);
+                    alert("Error in exporting csv");
+                });
+        },
+        checkCSV(id) {
+            Server().post(`/export/status`, { task_id: id })
+                .then(response => {
+                    alert(response.data.msg);
+                })
+                .catch(error => {
+                    console.log(error);
+                    alert("Error in checking csv");
+                });
+        }
     },
     created() {
         this.fetchVenues();
