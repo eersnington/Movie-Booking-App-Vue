@@ -1,6 +1,6 @@
 # App Dev 2 PROJECT
 
-Mad 2 Project with Flask and VueJS
+Modern App Development 2 Project with VueJS frontend, and Flask and  Redis backend.
 
 ## Install Virtual Environment
 
