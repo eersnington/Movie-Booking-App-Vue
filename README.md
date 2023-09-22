@@ -2,10 +2,12 @@
 
 Modern App Development 2 Project with VueJS frontend, and Flask and  Redis backend.
 
-## Install Virtual Environment
+## Install Virtual Environment and Packages
 
 ```sh
 python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
 ```
 ## Install Node Modules
 
